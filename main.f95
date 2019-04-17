@@ -490,8 +490,8 @@ subroutine      cast_hirth_shifts
     !    ux=0d0;uy=0d0;uz=0d0
     do i=1,atoms__in_total!first______wall,last_______wall
         ux=0d0;uy=0d0;uz=0d0
-        x=R_perf(1,i); y=R_perf(2,i); z=R_perf(3,i)
-        if(abs(x).lt.okr)cycle !atoms on extraplane
+        x=R_perf(1,i) + a0*0.25_8 ; y=R_perf(2,i) + a0*0.25_8 ; z=R_perf(3,i)
+        ! if(abs(x).lt.okr)cycle !atoms on extraplane
         if (x .gt.0d0) then
           if(y .gt.0d0)then
             !  ux= burgers/(pi*2d0)*(&
