@@ -487,22 +487,23 @@ subroutine      cast_hirth_shifts
     print*, "but Hirth & co. field is not working properly"
     print*, "but Hirth & co. field is not working properly"
     print*, "but Hirth & co. field is not working properly"
-!    ux=0d0;uy=0d0;uz=0d0
+    !    ux=0d0;uy=0d0;uz=0d0
     do i=1,atoms__in_total!first______wall,last_______wall
         ux=0d0;uy=0d0;uz=0d0
         x=R_perf(1,i); y=R_perf(2,i); z=R_perf(3,i)
         if(abs(x).lt.okr)cycle !atoms on extraplane
-
-        if((x .gt.0d0).and.(y .gt.0d0))then
-!            ux= burgers/(pi*2d0)*(&
-!            (atan2(y,x) + pi*( 05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
-            ux= burgers/(pi*2d0)*(&
-            (atan(y/x) + pi*( 05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
-        else
-!            ux=burgers/(pi*2d0)*& !
-!            (atan2(y,x) + pi*(-15d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y))
-            ux=burgers/(pi*2d0)*& !
-            (atan(y/x) + pi*(-15d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y))
+        if (x .gt.0d0) then
+          if(y .gt.0d0)then
+            !  ux= burgers/(pi*2d0)*(&
+            !  (atan2(y,x) + pi*( 05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
+              ux= burgers/(pi*2d0)*(&
+              (atan(y/x) + pi*(-05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
+          else
+            !  ux=burgers/(pi*2d0)*& !
+            !  (atan2(y,x) + pi*(-15d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y))
+              ux=burgers/(pi*2d0)*& !
+              (atan(y/x) + pi*( 05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y))
+          endif
         endif
         uy=-burgers/(pi*4d0)*(&
         (1d0-2d0*poisson)/(2d0-2d0*poisson)*log(x*x+y*y)-&
