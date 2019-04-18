@@ -3,7 +3,7 @@
 
 module array_parameters_mod
     save
-    integer, parameter  ::  x_layers= 18,y_layers= 18,z_layers= 4
+    integer, parameter  ::  x_layers= 18+1,y_layers= 18,z_layers= 4
     integer, parameter  ::  &
     atoms_max_array = (2*x_layers+1)*(2*y_layers+1)*(2*z_layers+1)*3
 endmodule array_parameters_mod
@@ -11,7 +11,7 @@ endmodule array_parameters_mod
 module comp_parameters_mod
     use array_parameters_mod
     save
-    integer, parameter  ::  beauty_denominator=72 !number of shots during iterative wall shift refinement
+    integer, parameter  ::  beauty_denominator=72*4 !number of shots during iterative wall shift refinement
     integer             ::  vestaWOcounter=0
     integer             ::  xyz__WOcounter=0
     integer             ::  matrixWOcounter=0
@@ -20,7 +20,7 @@ module comp_parameters_mod
     integer, parameter  ::  anisotropy_passages     = 8!10000 !
     !integer, parameter  ::  x_layers= 11,y_layers= 11,z_layers= 4
     !!@layers are 1+2*layers. see spawn_bcc_rectangular_100 for details
-    integer, parameter  ::  x_edges = 2,y_edges = 2,z_edges = 1!@from 4 edges of cell how much of a0 are borders
+    integer, parameter  ::  x_edges = 3,y_edges = 2,z_edges = 1!@from 4 edges of cell how much of a0 are borders
     integer             ::  atoms__in_total
     integer             ::  first_relaxable,last__relaxable
     integer             ::  first_z__period,last__z__period

@@ -9,7 +9,7 @@ PROGRAM    DISLOCATION_CORE_100_SPLIT
     call    set_seed_of_random_numbers  !@idnk whether it is needed
     call    spawn_bcc_rectangular_100   !@place the rectangular formed crystal of bcc structure
     !CALL    PART_THREE_ZONES            !@MAIN CELL, PERIODIC BC, FIXED BC
-    call    dislocate_100_split         !@dislocate before parting, to erase garbage atoms
+      !call    dislocate_100_split         !@dislocate before parting, to erase garbage atoms
     !call    wo_direct
     call    part_three_zones_cylinder            !@main cell, periodic bc, fixed bc
     !call    wo_zoned ; stop "check partition"
@@ -19,7 +19,9 @@ PROGRAM    DISLOCATION_CORE_100_SPLIT
     !!call    cast_hirth_shifts
     CALL    ENERGY_OF_SYSTEM(ANC3)
     call    cat_matrixes
-    call    cast_gusev_shifts
+    STOP"matrices found"
+      !call    cast_gusev_shifts
+    call    cast_hirth_shifts
     call    wo_matrixes_100
     !call    cat_verlet_list
     call    wo_zoned
@@ -35,7 +37,7 @@ PROGRAM    DISLOCATION_CORE_100_SPLIT
     !call    cat_verlet_list             !@neibors lists for fast energy calculation
     call    energy_of_system(anc3)
     !CALL    WO_XYZ_SNAPSHOT
-    STOP "matrices"
+    !STOP "matrices"
     !call    proceed_core_relaxation
     !call    conjugated_relaxation
     call    proceed_convergation_burgers_poisson
@@ -480,14 +482,15 @@ subroutine      cast_hirth_shifts
     use phys_parameters_mod
     use positions_mod
     use comp_parameters_mod
-    integer i
+    integer i,i_beauty
     real(8),parameter   :: okr=1d-3           !small epsilon
     real(8) x,y,z, ux,uy,uz
     print*, "casting Hirth shifts: b::",burgers," nu: ",poisson
-    print*, "but Hirth & co. field is not working properly"
-    print*, "but Hirth & co. field is not working properly"
-    print*, "but Hirth & co. field is not working properly"
+    !print*, "but Hirth & co. field is not working properly"
+    !print*, "but Hirth & co. field is not working properly"
+    !print*, "but Hirth & co. field is not working properly"
     !    ux=0d0;uy=0d0;uz=0d0
+do i_beauty=1,beauty_denominator
     do i=1,atoms__in_total!first______wall,last_______wall
         ux=0d0;uy=0d0;uz=0d0
         x=R_perf(1,i) + a0*0.25_8 ; y=R_perf(2,i) + a0*0.25_8 ; z=R_perf(3,i)
@@ -497,22 +500,27 @@ subroutine      cast_hirth_shifts
             !  ux= burgers/(pi*2d0)*(&
             !  (atan2(y,x) + pi*( 05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
               ux= burgers/(pi*2d0)*(&
-              (atan(y/x) + pi*(-05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
+              (atan(y/x) + pi*(-05d-1)*2 + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
           else
             !  ux=burgers/(pi*2d0)*& !
             !  (atan2(y,x) + pi*(-15d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y))
               ux=burgers/(pi*2d0)*& !
-              (atan(y/x) + pi*( 05d-1) + x*y*5d-1/(1-poisson)/(x*x+y*y))
+              (atan(y/x) + pi*( 05d-1)*2 + x*y*5d-1/(1-poisson)/(x*x+y*y))
           endif
+        else
+          ux= burgers/(pi*2d0)*(&
+          (atan(y/x) + pi*(0d0) + x*y*5d-1/(1-poisson)/(x*x+y*y)) )
         endif
+
         uy=-burgers/(pi*4d0)*(&
         (1d0-2d0*poisson)/(2d0-2d0*poisson)*log(x*x+y*y)-&
         y*y/((1-poisson)*(x*x+y*y) ) )
 
-        R_curr(1,i)=R_perf(1,i)+ux
-        R_curr(2,i)=R_perf(2,i)+uy
+        R_curr(1,i)=R_perf(1,i)+(ux*i_beauty)/beauty_denominator
+        R_curr(2,i)=R_perf(2,i)+(uy*i_beauty)/beauty_denominator
     enddo
-
+    call    wo_xyz_snapshot!@   write the image of trajectory
+enddo
 endsubroutine   cast_hirth_shifts
 
 subroutine      cast_gusev_shifts
@@ -529,6 +537,7 @@ subroutine      cast_gusev_shifts
     endif
 
 !    ux=0d0;uy=0d0;uz=0d0
+
     do i=1,atoms__in_total
     !do i=first______wall,last_______wall
         ux=0d0;uy=0d0;uz=0d0
@@ -949,7 +958,9 @@ subroutine      proceed_convergation_burgers_poisson
         call    conjugated_relaxation
         CALL    CONJUGATED_RELAXATION2
         call    conjugated_relaxation
+        call    wo_matrixes_100
     do i_anisotropy=1,anisotropy_passages
+      EXIT !not implemented anisotropic hirth
         call    wo_matrixes_100
         print*,"anisotropy passage #",i_anisotropy," of ",anisotropy_passages
         !CALL    CONJUGATED_RELAXATION2
@@ -991,7 +1002,7 @@ subroutine      cat_matrixes
     use comp_parameters_mod
     use phys_parameters_mod, only:a0
 
-    integer our_plane((2*x_layers+1)*(2*y_layers+1)*(2)),atoms_in_plane
+    integer our_plane((2*x_layers+1)*(2*y_layers+1)*(2)),atoms_in_plane,shape_m(2)
     integer i,s,i_x,i_y
     real(8) z_const,y_const,x_const
     logical found_a_node
@@ -1020,11 +1031,16 @@ subroutine      cat_matrixes
             s=s+1
             exit
         enddo
-        if(.not. found_a_node) matrix_z00(i_x,i_y)=-1 !@ a special code, for approximated nodes.
+        if(.not. found_a_node) then
+          matrix_z00(i_x,i_y)=-1 !@ a special code, for approximated nodes.
+          print*,"atom not found at x=",x_const," y= ",y_const
+        endif
     enddo!print*,"cant find node ",i_x,i_y,"z=00"
         !PRINT'(100(I5.1,1X))',MATRIX_Z00(-X_LAYERS:X_LAYERS,I_Y)
     enddo
-    print*,"z=00; found nodes: ",s,". exepected to find: ",atoms_in_plane
+    !shape_m = shape(matrix_z00)
+    print 283,"z=00; found nodes: ",s,". exepected to find: ",atoms_in_plane," shape is ",shape(matrix_z00)
+
     !plane z=05
     z_const=a0*5d-1 ; s=0
     do i=1,atoms__in_total
@@ -1048,11 +1064,15 @@ subroutine      cat_matrixes
             s=s+1
             exit
         enddo
-        if(.not. found_a_node) matrix_z05(i_x,i_y)=-1 !@ a special code, for approximated nodes.
+        if(.not. found_a_node) then
+          matrix_z05(i_x,i_y)=-1 !@ a special code, for approximated nodes.
+          print*,"atom not found at x=",x_const," y= ",y_const
+        endif
     enddo!print*,"cant find node ",i_x,i_y,"z=05"
         !PRINT'(100(I5.1,1X))',MATRIX_Z05(-X_LAYERS:X_LAYERS,I_Y)
     enddo
-    print*,"z=05; found nodes: ",s,". exepected to find: ",atoms_in_plane
+    print 283,"z=05; found nodes: ",s,". exepected to find: ",atoms_in_plane," shape is ",shape(matrix_z05)
+283 format(2(A,I7.6),A,I7.6,I7.6)
 endsubroutine   cat_matrixes
 
 subroutine      get_burgers_poisson_modified !# 110
@@ -1271,6 +1291,356 @@ subroutine      wo_summary_and_results(e_sys_init)!#133
     close(133)
 !130  format(1X,A,I3,1X,A,I3,1X,A,I3)
 endsubroutine   wo_summary_and_results
+
+subroutine      wo_matrixes_100_old !## 221:229
+    use positions_mod
+    use matrixes_mod
+    use comp_parameters_mod
+    integer i_x,i_y,na,n_left,n_rigt
+    character (LEN=28) matrixfilenameUX1, matrixfilenameUX0, matrixfilenameUXU
+    character (LEN=28) matrixfilenameUY1, matrixfilenameUY0, matrixfilenameUYU
+    character (LEN=28) matrixfilenameUZ1, matrixfilenameUZ0, matrixfilenameUZU
+    real(8) ux,uy,uz
+    matrixWOcounter = matrixWOcounter + 1
+    print*, "=== writing the matrixes out"
+!write(*,'(A,I2.2)')," === we already did it times: ", matrixWOcounter-1
+
+    write (matrixfilenameUX1, 14) ,"Matrix-stage" ,matrixWOcounter,("-z1-Ux-" &
+    // "100" // ".txt");    open (221, file = matrixfilenameUX1)
+    write (matrixfilenameUY1, 14) ,"Matrix-stage" ,matrixWOcounter,("-z1-Uy-" &
+    // "100" // ".txt");    open (222, file = matrixfilenameUY1)
+    write (matrixfilenameUZ1, 14) ,"Matrix-stage" ,matrixWOcounter,("-z1-Uz-" &
+    // "100" // ".txt");    open (223, file = matrixfilenameUZ1)
+    write (matrixfilenameUX0, 14) ,"Matrix-stage" ,matrixWOcounter,("-z0-Ux-" &
+    // "100" // ".txt");    open (224, file = matrixfilenameUX0)
+    write (matrixfilenameUY0, 14) ,"Matrix-stage" ,matrixWOcounter,("-z0-Uy-" &
+    // "100" // ".txt");    open (225, file = matrixfilenameUY0)
+    write (matrixfilenameUZ0, 14) ,"Matrix-stage" ,matrixWOcounter,("-z0-Uz-" &
+    // "100" // ".txt");    open (226, file = matrixfilenameUZ0)
+    !united matrices
+    write (matrixfilenameUXu, 14) ,"Matrix-stage" ,matrixWOcounter,("-un-Ux-" &
+    // "100" // ".txt");    open (227, file = matrixfilenameUXu)
+    write (matrixfilenameUYu, 14) ,"Matrix-stage" ,matrixWOcounter,("-un-Uy-" &
+    // "100" // ".txt");    open (228, file = matrixfilenameUYu)
+    write (matrixfilenameUZu, 14) ,"Matrix-stage" ,matrixWOcounter,("-un-Uz-" &
+    // "100" // ".txt");    open (229, file = matrixfilenameUZu)
+
+    matrix_united_ux=0d0; matrix_united_uy=0d0; matrix_united_uz=0d0
+
+    do i_y= y_layers-1,-y_layers,-1
+    do i_x=-x_layers, x_layers-1
+        !write out matrix of evasions for z=0.5*a0 plane
+        na=matrix_z05(i_x,i_y)
+        !print'(1x,I3.3)'
+        if(na.eq. 0)cycle
+        if(na.eq.-1)then
+            !print*,matrix_z05(i_x+1,i_y)
+            !IF(I_X.LE.-X_LAYERS)    STOP"WHY1"!TO AVOID CALL TO INCORRECT ADRESS BELOW
+            !IF(I_X.GE. X_LAYERS-1)  STOP"WHY2"!TO AVOID CALL TO INCORRECT ADRESS BELOW
+            if(i_x.le.-x_layers)    cycle!to avoid call to incorrect adress below
+            if(i_x.ge. x_layers-1)  cycle!to avoid call to incorrect adress below
+            n_left=matrix_z05(i_x-1,i_y)
+            n_rigt=matrix_z05(i_x+1,i_y)
+            if(n_left.le.0)then
+                write(221,210), (R_curr(1,n_rigt) - R_perf(1,n_rigt))
+                write(222,210), (R_curr(2,n_rigt) - R_perf(2,n_rigt))
+                write(223,210), (R_curr(3,n_rigt) - R_perf(3,n_rigt))
+                matrix_united_ux(2*i_x+1,2*i_y+1) = (R_curr(1,n_rigt) - R_perf(1,n_rigt))
+                matrix_united_uy(2*i_x+1,2*i_y+1) = (R_curr(2,n_rigt) - R_perf(2,n_rigt))
+                matrix_united_uz(2*i_x+1,2*i_y+1) = (R_curr(3,n_rigt) - R_perf(3,n_rigt))
+            endif
+            if(n_rigt.le.0)then
+                write(221,210), (R_curr(1,n_left) - R_perf(1,n_left))
+                write(222,210), (R_curr(2,n_left) - R_perf(2,n_left))
+                write(223,210), (R_curr(3,n_left) - R_perf(3,n_left))
+                matrix_united_ux(2*i_x+1,2*i_y+1) = (R_curr(1,n_left) - R_perf(1,n_left))
+                matrix_united_uy(2*i_x+1,2*i_y+1) = (R_curr(2,n_left) - R_perf(2,n_left))
+                matrix_united_uz(2*i_x+1,2*i_y+1) = (R_curr(3,n_left) - R_perf(3,n_left))
+            endif
+            cycle
+        endif
+        write(221,210), R_curr(1,na) - R_perf(1,na)
+        write(222,210), R_curr(2,na) - R_perf(2,na)
+        write(223,210), R_curr(3,na) - R_perf(3,na)
+        matrix_united_ux(2*i_x+1,2*i_y+1) = R_curr(1,na) - R_perf(1,na)
+        matrix_united_uy(2*i_x+1,2*i_y+1) = R_curr(2,na) - R_perf(2,na)
+        matrix_united_uz(2*i_x+1,2*i_y+1) = R_curr(3,na) - R_perf(3,na)
+    enddo
+        if (i_y.ne.-y_layers) then
+            write(221,*)," "!finalize the line
+            write(222,*)," "
+            write(223,*)," "
+        endif
+    enddo
+
+    do i_y= y_layers,-y_layers,-1
+    do i_x=-x_layers, x_layers
+        !write out matrix of evasions for z=0.0*a0 plane
+        na=matrix_z00(i_x,i_y)
+        if(na.eq. 0)cycle
+        if(na.eq.-1)then
+            !if(i_x.le.-x_layers)!stop"why3"!to avoid call to incorrect adress below
+            !if(i_x.ge. x_layers)stop"why4"!to avoid call to incorrect adress below
+            n_left=matrix_z00(i_x-1,i_y)
+            n_rigt=matrix_z00(i_x+1,i_y)
+            if(.true.) then
+                write(224,210), (R_curr(1,n_left) - R_perf(1,n_left) &
+                                +R_curr(1,n_rigt) - R_perf(1,n_rigt))*5d-1
+                write(225,210), (R_curr(2,n_left) - R_perf(2,n_left) &
+                                +R_curr(2,n_rigt) - R_perf(2,n_rigt))*5d-1
+                write(226,210), (R_curr(3,n_left) - R_perf(3,n_left) &
+                                +R_curr(3,n_rigt) - R_perf(3,n_rigt))*5d-1
+
+                matrix_united_ux(2*i_x,2*i_y) = (R_curr(1,n_left) - R_perf(1,n_left) &
+                                                +R_curr(1,n_rigt) - R_perf(1,n_rigt))*5d-1
+                matrix_united_uy(2*i_x,2*i_y) = (R_curr(2,n_left) - R_perf(2,n_left) &
+                                                +R_curr(2,n_rigt) - R_perf(2,n_rigt))*5d-1
+                matrix_united_uz(2*i_x,2*i_y) = (R_curr(3,n_left) - R_perf(3,n_left) &
+                                                +R_curr(3,n_rigt) - R_perf(3,n_rigt))*5d-1
+            endif
+!            if(b) then
+!                write(224,210), (R_curr(1,n_left) - R_perf(1,n_left) &
+!                                +R_curr(1,n_rigt) - R_perf(1,n_rigt))*5d-1
+!                write(225,210), (R_curr(2,n_left) - R_perf(2,n_left) &
+!                                +R_curr(2,n_rigt) - R_perf(2,n_rigt))*5d-1
+!                write(226,210), (R_curr(3,n_left) - R_perf(3,n_left) &
+!                                +R_curr(3,n_rigt) - R_perf(3,n_rigt))*5d-1
+!
+!                matrix_united_ux(2*i_x,2*i_y) = (R_curr(1,n_left) - R_perf(1,n_left) &
+!                                                +R_curr(1,n_rigt) - R_perf(1,n_rigt))*5d-1
+!                matrix_united_uy(2*i_x,2*i_y) = (R_curr(2,n_left) - R_perf(2,n_left) &
+!                                                +R_curr(2,n_rigt) - R_perf(2,n_rigt))*5d-1
+!                matrix_united_uz(2*i_x,2*i_y) = (R_curr(3,n_left) - R_perf(3,n_left) &
+!                                                +R_curr(3,n_rigt) - R_perf(3,n_rigt))*5d-1
+!            endif
+            cycle
+        endif
+        write(224,210), R_curr(1,na) - R_perf(1,na)
+        write(225,210), R_curr(2,na) - R_perf(2,na)
+        write(226,210), R_curr(3,na) - R_perf(3,na)
+        matrix_united_ux(2*i_x,2*i_y) = R_curr(1,na) - R_perf(1,na)
+        matrix_united_uy(2*i_x,2*i_y) = R_curr(2,na) - R_perf(2,na)
+        matrix_united_uz(2*i_x,2*i_y) = R_curr(3,na) - R_perf(3,na)
+    enddo
+        if (i_y.ne.-y_layers) then
+            write(224,*)," "!finalize the line
+            write(225,*)," "
+            write(226,*)," "
+        endif
+    enddo
+
+    do i_y=-2*y_layers, 2*y_layers
+        do i_x=-2*x_layers, 2*x_layers
+            if((i_x.eq.-2*x_layers).and.(i_y.eq.-2*y_layers))cycle
+            if((i_x.eq.-2*x_layers).and.(i_y.eq. 2*y_layers))cycle
+            if((i_x.eq. 2*x_layers).and.(i_y.eq.-2*y_layers))cycle
+            if((i_x.eq. 2*x_layers).and.(i_y.eq. 2*y_layers))cycle
+            if(mod(i_y+i_x,2).eq.0)then
+                if(i_x*i_x.ne.1)cycle
+!                if(i_x.ne.0)cycle
+!                    if(i_y.eq.-2*y_layers) then
+!                        matrix_united_uy(i_x  ,i_y  )=&
+!                        matrix_united_uy(i_x  ,i_y-1)*15d-1-&
+!                        matrix_united_uy(i_x  ,i_y-3)*05d-1
+!                        matrix_united_uz(i_x  ,i_y  )=&
+!                        matrix_united_uz(i_x  ,i_y-1)*15d-1-&
+!                        matrix_united_uz(i_x  ,i_y-3)*05d-1
+!                        cycle
+!                    endif
+                if(i_y.le.0)cycle
+                if(i_y.ge.2*y_layers-1) then
+                    matrix_united_uy(i_x  ,i_y  )=&
+                    matrix_united_uy(i_x  ,i_y-1)*15d-1-&
+                    matrix_united_uy(i_x  ,i_y-3)*05d-1
+                    matrix_united_uz(i_x  ,i_y  )=&
+                    matrix_united_uz(i_x  ,i_y-1)*15d-1-&
+                    matrix_united_uz(i_x  ,i_y-3)*05d-1
+                    cycle
+                endif
+                if(i_y.eq.0) then
+                    matrix_united_uy(i_x  ,i_y  )=&
+                    matrix_united_uy(i_x  ,i_y-1)
+                    matrix_united_uz(i_x  ,i_y  )=&
+                    matrix_united_uz(i_x  ,i_y-1)
+                    cycle
+                endif
+                    matrix_united_uy(i_x  ,i_y  )=&
+                    matrix_united_uy(i_x  ,i_y-1)*15d-1-&
+                    matrix_united_uy(i_x  ,i_y-3)*05d-1
+                    matrix_united_uz(i_x  ,i_y  )=&
+                    matrix_united_uz(i_x  ,i_y-1)*15d-1-&
+                    matrix_united_uz(i_x  ,i_y-3)*05d-1
+!                matrix_united_uy(i_x  ,i_y  )=&
+!                matrix_united_uy(i_x  ,i_y+1)*5d-1+&
+!                matrix_united_uy(i_x  ,i_y-1)*5d-1
+!                matrix_united_uz(i_x  ,i_y  )=&
+!                matrix_united_uz(i_x  ,i_y+1)*5d-1+&
+!                matrix_united_uz(i_x  ,i_y-1)*5d-1
+                cycle
+            endif
+            if ((i_x.eq.-2*x_layers) .or. (i_x.eq. 2*x_layers)) then
+                matrix_united_ux(i_x  ,i_y  )=&
+                matrix_united_ux(i_x  ,i_y+1)*5d-1+&
+                matrix_united_ux(i_x  ,i_y-1)*5d-1
+                matrix_united_uy(i_x  ,i_y  )=&
+                matrix_united_uy(i_x  ,i_y+1)*5d-1+&
+                matrix_united_uy(i_x  ,i_y-1)*5d-1
+                matrix_united_uz(i_x  ,i_y  )=&
+                matrix_united_uz(i_x  ,i_y+1)*5d-1+&
+                matrix_united_uz(i_x  ,i_y-1)*5d-1
+                cycle
+            endif
+            if (i_y.eq.-2*y_layers) then
+                matrix_united_ux(i_x  ,i_y  )=&
+                matrix_united_ux(i_x+1,i_y  )*5d-1+&
+                matrix_united_ux(i_x-1,i_y  )*5d-1
+                matrix_united_uy(i_x  ,i_y  )=&
+                matrix_united_uy(i_x+1,i_y  )*5d-1+&
+                matrix_united_uy(i_x-1,i_y  )*5d-1
+                matrix_united_uz(i_x  ,i_y  )=&
+                matrix_united_uz(i_x+1,i_y  )*5d-1+&
+                matrix_united_uz(i_x-1,i_y  )*5d-1
+                cycle
+            endif
+            if (i_y.eq. 2*y_layers)  then
+                if (i_x.eq.-1)  then !do not make average with plane of symmetry
+                    matrix_united_ux(i_x  ,i_y  )=&
+                    matrix_united_ux(i_x-1,i_y  )*15d-1-&
+                    matrix_united_ux(i_x-2,i_y  )*05d-1!delta x is a/2 not a
+                    matrix_united_uy(i_x  ,i_y  )=&
+                    matrix_united_uy(i_x-1,i_y  )*15d-1-&
+                    matrix_united_uy(i_x-2,i_y  )*05d-1
+                    matrix_united_uz(i_x  ,i_y  )=&
+                    matrix_united_uz(i_x-1,i_y  )*15d-1-&
+                    matrix_united_uz(i_x-2,i_y  )*05d-1
+                    cycle
+                endif
+                if (i_x.eq. 1)  then
+                    matrix_united_ux(i_x  ,i_y  )=&
+                    matrix_united_ux(i_x+1,i_y  )*15d-1-&
+                    matrix_united_ux(i_x+3,i_y  )*05d-1 ! i_x+2 is not ready
+                    matrix_united_uy(i_x  ,i_y  )=&
+                    matrix_united_uy(i_x+1,i_y  )*15d-1-&
+                    matrix_united_uy(i_x+3,i_y  )*05d-1
+                    matrix_united_uz(i_x  ,i_y  )=&
+                    matrix_united_uz(i_x+1,i_y  )*15d-1-&
+                    matrix_united_uz(i_x+3,i_y  )*05d-1
+                    cycle
+                endif
+                matrix_united_ux(i_x  ,i_y  )=&
+                matrix_united_ux(i_x+1,i_y  )*5d-1+&
+                matrix_united_ux(i_x-1,i_y  )*5d-1
+                matrix_united_uy(i_x  ,i_y  )=&
+                matrix_united_uy(i_x+1,i_y  )*5d-1+&
+                matrix_united_uy(i_x-1,i_y  )*5d-1
+                matrix_united_uz(i_x  ,i_y  )=&
+                matrix_united_uz(i_x+1,i_y  )*5d-1+&
+                matrix_united_uz(i_x-1,i_y  )*5d-1
+                cycle
+            endif
+            if (i_x.eq.-1)  then
+                matrix_united_ux(i_x  ,i_y  )= (       &
+                matrix_united_ux(i_x-1,i_y  )*2d0-     &
+                matrix_united_ux(i_x-2,i_y  )  )*20d-2+&
+                matrix_united_ux(i_x  ,i_y+1)*40d-2+   &
+                matrix_united_ux(i_x  ,i_y-1)*40d-2
+
+                matrix_united_uy(i_x  ,i_y  )= (       &
+                matrix_united_uy(i_x-1,i_y  )*2d0-     &
+                matrix_united_uy(i_x-2,i_y  )  )*20d-2+&
+                matrix_united_uy(i_x  ,i_y+1)*40d-2+   &
+                matrix_united_uy(i_x  ,i_y-1)*40d-2
+
+                matrix_united_uz(i_x  ,i_y  )= (       &
+                matrix_united_uz(i_x-1,i_y  )*2d0-     &
+                matrix_united_uz(i_x-2,i_y  )  )*20d-2+&
+                matrix_united_uz(i_x  ,i_y+1)*40d-2+   &
+                matrix_united_uz(i_x  ,i_y-1)*40d-2
+                cycle
+            endif
+            if (i_x.eq. 1)  then ! i_x=3 is not ready
+                matrix_united_ux(i_x  ,i_y  )= (       &
+                matrix_united_ux(i_x+1,i_y  )*175d-2+     & !surely plus
+                matrix_united_ux(i_x-3,i_y  )*075d-2  )*20d-2+&
+                matrix_united_ux(i_x  ,i_y+1)*40d-2+   &
+                matrix_united_ux(i_x  ,i_y-1)*40d-2
+
+                matrix_united_uy(i_x  ,i_y  )= (       &
+                matrix_united_uy(i_x+1,i_y  )*175d-2-     & !surely minus
+                matrix_united_uy(i_x-3,i_y  )*075d-2  )*20d-2+&
+                matrix_united_uy(i_x  ,i_y+1)*40d-2+   &
+                matrix_united_uy(i_x  ,i_y-1)*40d-2
+
+                matrix_united_uz(i_x  ,i_y  )= (       &
+                matrix_united_uz(i_x+1,i_y  )*175d-2-     & !surely minus
+                matrix_united_uz(i_x-3,i_y  )*075d-2  )*20d-2+&
+                matrix_united_uz(i_x  ,i_y+1)*40d-2+   &
+                matrix_united_uz(i_x  ,i_y-1)*40d-2
+                cycle !1/3 is not good multiplicator
+            endif
+            if(i_x.eq.0) then
+                if(i_y.ge.0) then
+                matrix_united_ux(i_x  ,i_y  )=0d0!&
+!                matrix_united_ux(i_x+1,i_y  )*25d-2+&
+!                matrix_united_ux(i_x-1,i_y  )*25d-2+&
+!                matrix_united_ux(i_x  ,i_y+1)*25d-2+&
+!                matrix_united_ux(i_x  ,i_y-1)*25d-2
+                    matrix_united_uy(i_x  ,i_y  )=&
+                    matrix_united_uy(i_x  ,i_y+1)*50d-2+&
+                    matrix_united_uy(i_x  ,i_y-1)*50d-2
+
+                    matrix_united_uz(i_x  ,i_y  )=&
+                    matrix_united_uz(i_x  ,i_y+1)*50d-2+&
+                    matrix_united_uz(i_x  ,i_y-1)*50d-2
+                    cycle
+                endif
+            endif
+            matrix_united_ux(i_x  ,i_y  )=&
+            matrix_united_ux(i_x+1,i_y  )*25d-2+&
+            matrix_united_ux(i_x-1,i_y  )*25d-2+&
+            matrix_united_ux(i_x  ,i_y+1)*25d-2+&
+            matrix_united_ux(i_x  ,i_y-1)*25d-2
+
+            matrix_united_uy(i_x  ,i_y  )=&
+            matrix_united_uy(i_x+1,i_y  )*25d-2+&
+            matrix_united_uy(i_x-1,i_y  )*25d-2+&
+            matrix_united_uy(i_x  ,i_y+1)*25d-2+&
+            matrix_united_uy(i_x  ,i_y-1)*25d-2
+
+            matrix_united_uz(i_x  ,i_y  )=&
+            matrix_united_uz(i_x+1,i_y  )*25d-2+&
+            matrix_united_uz(i_x-1,i_y  )*25d-2+&
+            matrix_united_uz(i_x  ,i_y+1)*25d-2+&
+            matrix_united_uz(i_x  ,i_y-1)*25d-2
+            !cycle
+        enddo
+    enddo
+
+    do i_y=-2*y_layers, 2*y_layers
+        do i_x=-2*x_layers, 2*x_layers
+            write(227,210),matrix_united_ux(i_x  ,i_y  )
+            write(228,210),matrix_united_uy(i_x  ,i_y  )
+            write(229,210),matrix_united_uz(i_x  ,i_y  )
+        enddo
+        if (i_y.ne.2*y_layers) then
+            write(227,*)," "!finalize the line
+            write(228,*)," "
+            write(229,*)," "
+        endif
+    enddo
+
+close(221)
+close(222)
+close(223)
+close(224)
+close(225)
+close(226)
+close(227)
+close(228)
+close(229)
+014 format(A,I2.2,A)
+210 format(1x,E11.4,$)
+endsubroutine   wo_matrixes_100_old
 
 subroutine      wo_matrixes_100 !## 221:229
     use positions_mod
